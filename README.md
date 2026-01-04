@@ -11,12 +11,19 @@ VideoShuffle is a robust Android application designed for creating a seamless, s
 - **Hardware-Aware Camera Support:** The app automatically detects if a device has a USB camera connected and will use it as a video source. On devices without a camera or on TV-based devices (which may have poor USB support), it will safely fall back to a "No Signal" placeholder.
 - **Kiosk Mode:** The app is designed to run as a dedicated home screen launcher, making it ideal for single-purpose device deployments.
 
-## How It Works
+## Network Configuration (Tailscale/Headscale)
 
-Each instance of the app acts as both a client and a server.
+The app's discovery system is designed to work over a mesh VPN and relies on a specific device naming convention.
 
-- **As a Server:** It starts a lightweight HTTP server on port `8080`. If a USB camera is present, it serves an MJPEG stream of the camera feed. It also provides a `/status` endpoint for other peers to verify its identity.
-- **As a Client:** It continuously scans the network to find and verify other peers. When a peer is found, it connects to its video stream. The app will never show its own video stream to itself.
+1.  **Mesh Network:** All devices running this app must be part of the same Tailscale or Headscale network. This ensures they can communicate with each other regardless of their physical location.
+
+2.  **Enable MagicDNS:** You must enable MagicDNS in your network's admin console. This is what allows devices to find each other using their simple hostnames instead of IP addresses.
+
+3.  **Device Naming Convention:** In your network's admin console (e.g., `https://headscale.planbee.ai/admin`), you must name your devices according to the following pattern:
+    `uninovis-tp-XX`
+    Where `XX` is a two-digit number (e.g., `01`, `02`, `03`). The app is hard-coded to scan for devices named from `uninovis-tp-01` through `uninovis-tp-20`.
+
+Failure to follow this naming convention will prevent the MagicDNS discovery from working.
 
 ## Building from Source
 
@@ -30,7 +37,7 @@ Each instance of the app acts as both a client and a server.
 1.  **Clone the Repository:**
 
     ```bash
-    git clone 
+    git clone <your-repository-url>
     ```
 
 2.  **Open in Android Studio:**
@@ -42,44 +49,32 @@ Each instance of the app acts as both a client and a server.
 
     -   Wait for Android Studio to sync the Gradle project.
     -   From the menu bar, go to `Build` -> `Build Bundle(s) / APK(s)` -> `Build APK(s)`.
-    -   Once the build is complete, a notification will appear. Click "locate" to find the generated `app-debug.apk` file. This is the file you will distribute and install on your devices.
+    -   Once the build is complete, a notification will appear. Click "locate" to find the generated `app-debug.apk` file.
 
-## Configuration & Usage
+## Distributing the App
 
-### MagicDNS Naming
+The generated APK file (`app-debug.apk`) should not be committed to the Git repository. Instead, it should be distributed using **GitHub Releases**. This allows you to attach the compiled application to a specific version tag of your source code.
 
-The app is pre-configured to discover peers with hostnames following the pattern `uninovis-tp-XX`, where `XX` is a number from `01` to `20`. For the app to work correctly, you must ensure your devices are named accordingly within your Tailscale network.
+Refer to the official GitHub documentation on "[Managing releases in a repository](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)" for detailed instructions.
 
-To change this prefix, modify the following line in `MainActivity.kt`:
+## Enabling Debug Logging
 
-```kotlin
-// In the scanMagicDnsNames() method
-val hostname = "uninovis-tp-${String.format(Locale.US, "%02d", i)}"
-```
+For a clean UI, on-screen logging is disabled by default. To re-enable it for debugging:
 
-### Enabling Debug Logging
-
-By default, the on-screen debug logging is disabled for a clean user experience. To re-enable it for debugging purposes:
-
-1.  Open the `MainActivity.kt` file.
-2.  Navigate to the `log(msg: String)` function at the end of the file.
-3.  Uncomment the line that appends text to the `logTextView`:
+1.  Open `MainActivity.kt`.
+2.  Navigate to the `log(msg: String)` function.
+3.  Uncomment the line that appends text to the `logTextView`. The `Log.d` line ensures that logs are always sent to Android Studio's Logcat.
 
     ```kotlin
     private fun log(msg: String) {
-        val time = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
+        // ...
         runOnUiThread {
-            // Uncomment the following two lines to enable on-screen logging
-            //if (::logTextView.isInitialized) {
-            //    logTextView.append("[$time] $msg\n")
-            //}
-
-            // The line below will still send logs to the standard Android Logcat
+            // Uncomment the following lines to enable on-screen logging
+            // if (::logTextView.isInitialized) {
+            //     logTextView.append("[$time] $msg\n")
+            // }
             Log.d(TAG, "[$time] $msg")
         }
     }
     ```
-
-4.  Rebuild the APK as described above.
-
-This will restore the on-screen log, which is invaluable for diagnosing network or discovery issues in the field.
+4.  Rebuild the APK.
