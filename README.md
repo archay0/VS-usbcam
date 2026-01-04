@@ -2,6 +2,8 @@
 
 VideoShuffle is a robust Android application designed for creating a seamless, self-organizing video shuffling network. It is built to run on a group of Android devices (such as tablets and TV boxes) on the same private mesh network (e.g., Tailscale, Headscale), and it is optimized for use with MagicDNS.
 
+## Download the APK from the Releases page!
+
 ## Core Features
 
 - **Automatic Peer Discovery:** The app uses a multi-pronged approach (MagicDNS, UDP broadcasts, and local network scanning) to reliably discover other devices running the same app.
