@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- This file is used by the Android USB host APIs to identify devices to connect to. -->
+    <!-- The vendor-id and product-id attributes can be used to filter for specific devices. -->
+    <!-- Omitting these attributes will match all USB devices, which is useful for development. -->
+    <usb-device />
+</resources>
