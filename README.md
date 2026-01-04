@@ -37,7 +37,7 @@ Failure to follow this naming convention will prevent the MagicDNS discovery fro
 1.  **Clone the Repository:**
 
     ```bash
-    git clone <your-repository-url>
+    git clone https://github.com/archay0/VS-usbcam.git
     ```
 
 2.  **Open in Android Studio:**
