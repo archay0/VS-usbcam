@@ -53,9 +53,7 @@ Failure to follow this naming convention will prevent the MagicDNS discovery fro
 
 ## Distributing the App
 
-The generated APK file (`app-debug.apk`) should not be committed to the Git repository. Instead, it should be distributed using **GitHub Releases**. This allows you to attach the compiled application to a specific version tag of your source code.
-
-Refer to the official GitHub documentation on "[Managing releases in a repository](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)" for detailed instructions.
+Distribution with trusted url exchange and Headscale logins. Please ask admin.
 
 ## Enabling Debug Logging
 
