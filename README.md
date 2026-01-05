@@ -21,7 +21,7 @@ The app's discovery system is designed to work over a mesh VPN and relies on a s
 
 2.  **Enable MagicDNS:** You must enable MagicDNS in your network's admin console. This is what allows devices to find each other using their simple hostnames instead of IP addresses.
 
-3.  **Device Naming Convention:** In your network's admin console (e.g., `https://headscale.planbee.ai/admin`), you must name your devices according to the following pattern:
+3.  **Device Naming Convention:** In your network's admin console (e.g., '//servername//'), you must name your devices according to the following pattern:
     `uninovis-tp-XX`
     Where `XX` is a two-digit number (e.g., `01`, `02`, `03`). The app is hard-coded to scan for devices named from `uninovis-tp-01` through `uninovis-tp-20`.
 
