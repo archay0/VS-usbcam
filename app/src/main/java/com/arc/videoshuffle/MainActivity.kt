@@ -1,12 +1,15 @@
 package com.arc.videoshuffle
 
+import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.TextureView
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -21,14 +24,14 @@ import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
+class MainActivity : AppCompatActivity() {
 
+    private lateinit var logTextView: TextView
     private lateinit var mjpegView: MjpegView
-    private lateinit var cameraView: TextureView
-    private var cameraServer: CameraServer? = null
+    private var cameraServer: UsbCameraServer? = null
 
     private val scanClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS) 
+        .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
@@ -48,6 +51,8 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
 
     companion object {
         private const val TAG = "VideoShuffle"
+        private const val REQUEST_CODE_PERMISSIONS = 10
+        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
         private const val MAX_DEVICES_TO_SCAN = 20
         private const val SCAN_INTERVAL = 15000L
         private const val SHUFFLE_DURATION = 300000L
@@ -56,7 +61,7 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
     }
 
     private val shuffleRunnable = Runnable {
-        log("⏱️ Shuffle time! (5 minutes elapsed)")
+        log("[SHUFFLE] Time elapsed (5 minutes), switching peer")
         shuffleToNextPeer()
     }
 
@@ -64,8 +69,8 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        logTextView = findViewById(R.id.log_textview)
         mjpegView = findViewById(R.id.mjpeg_view)
-        cameraView = findViewById(R.id.camera_view)
 
         log("App UI Initialized.")
         log("Device ID: $deviceId")
@@ -76,53 +81,109 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
             }
         })
 
-        cameraServer = CameraServer(this, deviceId, cameraView)
-        cameraServer?.setServerListener(this)
-        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) {
-            log("Device is not a TV. Preparing camera...")
-            cameraServer?.prepare()
-            log("Camera prepared.")
-        } else {
-            log("Device is a TV. Skipping local camera setup.")
-        }
-
         shuffleEngine = ShuffleEngine("unknown")
 
-        initExecutor.execute {
-            log("Background services starting...")
-            log("Starting web server...")
+        if (allPermissionsGranted()) {
+            startAppLogic()
+        } else {
+            ActivityCompat.requestPermissions(
+                this,
+                REQUIRED_PERMISSIONS,
+                REQUEST_CODE_PERMISSIONS
+            )
+        }
+    }
+
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_PERMISSIONS) {
+            if (allPermissionsGranted()) {
+                startAppLogic()
+            } else {
+                log("[ERROR] Permissions not granted by the user")
+                finish()
+            }
+        }
+    }
+
+    private fun startAppLogic() {
+        log("[INFO] Permissions granted, starting core logic")
+        
+        // Use USB camera server for Android TV boxes
+        cameraServer = UsbCameraServer(this, deviceId)
+        cameraServer?.setServerListener(object : UsbCameraServer.ServerListener {
+            override fun onServerStarted() {
+                log("[SERVER] HTTP server started successfully")
+                
+                // Double-check camera permission
+                if (checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    log("[CAMERA] Permission verified, starting USB camera detection")
+                    cameraServer?.startUsbCamera()
+                } else {
+                    log("[ERROR] Camera permission not granted at runtime")
+                }
+                
+                startDiscovery()
+            }
+            
+            override fun onServerFailed(e: Exception) {
+                log("[ERROR] Server failed: ${e.message}")
+            }
+            
+            override fun onCameraOpened() {
+                log("[CAMERA] USB camera opened and streaming")
+            }
+            
+            override fun onCameraError(error: String) {
+                log("[ERROR] Camera error: $error")
+            }
+        })
+        
+        log("[SERVER] Starting HTTP server")
+        Executors.newSingleThreadExecutor().execute {
             cameraServer?.start()
         }
     }
+    
+    private fun startDiscovery() {
+        // Get hostname
+        val resolvedHostname = try {
+            InetAddress.getLocalHost().hostName.takeIf { it != "localhost" && !it.contains("127.0.0.1") }
+        } catch (e: Exception) {
+            log("[WARN] Hostname lookup failed: ${e.message}")
+            null
+        }
 
-    override fun onServerStarted() {
-        log("✅ Web server has started successfully.")
-        initExecutor.execute {
-            val resolvedHostname = try {
-                InetAddress.getLocalHost().hostName.takeIf { it != "localhost" && !it.contains("127.0.0.1") }
-            } catch (e: Exception) {
-                log("⚠️ Hostname lookup failed: ${e.message}")
-                null
+        mainHandler.post {
+            myHostname = resolvedHostname
+            shuffleEngine = ShuffleEngine(myHostname ?: "unknown")
+            
+            if (myHostname != null) {
+                log("[INFO] My Hostname: $myHostname")
+            } else {
+                log("[WARN] No hostname, using IP")
             }
-
-            mainHandler.post {
-                myHostname = resolvedHostname
-                shuffleEngine = ShuffleEngine(myHostname ?: "unknown")
-                log(if (myHostname != null) "✅ My Hostname: $myHostname" else "⚠️ Continuing without a known hostname.")
-                
-                log("Starting discovery mechanisms...")
-                startScanningLoop()
-                startUdpBroadcast()
-                startUdpListener()
-                scanLocalNetwork()
-                updateStreamSelection()
-            }
+            
+            log("[DISCOVERY] Starting peer discovery")
+            startScanningLoop()
+            startUdpBroadcast()
+            startUdpListener()
+            scanLocalNetwork()
+            
+            log("[DISCOVERY] Running initial peer check")
+            updateStreamSelection()
         }
     }
 
-    override fun onServerFailed(e: Exception) {
-        log("❌ CRITICAL: Web server failed to start: ${e.message}")
-    }
+    // Scanning loop for MagicDNS
 
     private fun startScanningLoop() {
         log("Starting Peer Scan Loop...")
@@ -141,7 +202,7 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
             try {
                 broadcastSocket = DatagramSocket()
                 broadcastSocket?.broadcast = true
-                log("📡 Starting UDP broadcast announcements on port $BROADCAST_PORT")
+                log("[UDP] Starting broadcast on port $BROADCAST_PORT")
                 while (!Thread.currentThread().isInterrupted) {
                     try {
                         val message = "VIDEOSHUFFLE:$deviceId:8080"
@@ -152,7 +213,7 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
                     Thread.sleep(BROADCAST_INTERVAL)
                 }
             } catch (e: Exception) {
-                log("⚠️ Broadcast failed to start: ${e.message}")
+                log("[ERROR] Broadcast failed to start: ${e.message}")
             }
         }.start()
     }
@@ -160,11 +221,11 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
     private fun startUdpListener() {
         Thread { 
             try {
-                listenSocket = DatagramSocket(null) // Create socket unbound
-                listenSocket?.reuseAddress = true // IMPORTANT: Allow multiple apps to listen on the same port
-                listenSocket?.bind(java.net.InetSocketAddress(BROADCAST_PORT)) // Now bind to the port
+                listenSocket = DatagramSocket(null)
+                listenSocket?.reuseAddress = true
+                listenSocket?.bind(java.net.InetSocketAddress(BROADCAST_PORT))
 
-                log("👂 Listening for UDP announcements on port $BROADCAST_PORT")
+                log("[UDP] Listening on port $BROADCAST_PORT")
                 val buffer = ByteArray(1024)
                 while (!Thread.currentThread().isInterrupted) {
                     try {
@@ -184,9 +245,9 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
                     } catch (e: Exception) { /* Continue */ }
                 }
             } catch (e: java.net.SocketException) {
-                log("⚠️ UDP Listener failed (SocketException): ${e.message}. Another app might be using port $BROADCAST_PORT.")
+                log("[ERROR] UDP listener failed (SocketException): ${e.message}")
             } catch (e: Exception) {
-                log("⚠️ UDP listener failed: ${e.message}")
+                log("[ERROR] UDP listener failed: ${e.message}")
             }
         }.start()
     }
@@ -194,7 +255,7 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
     private fun handleDiscoveredPeer(ip: String, peerId: String) {
         if (!discoveredIPs.contains(ip)) {
             discoveredIPs.add(ip)
-            log("📡 Discovered peer via UDP: $ip")
+            log("[UDP] Discovered peer: $ip")
             Executors.newSingleThreadExecutor().execute { verifyAndAddPeer(ip) }
         }
     }
@@ -203,8 +264,17 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
         Executors.newSingleThreadExecutor().execute { 
             try {
                 val localIp = getLocalIpAddress() ?: return@execute
+                log("[NETWORK] My IP: $localIp")
+                
+                // Skip emulator networks (10.0.2.x)
+                if (localIp.startsWith("10.0.2.")) {
+                    return@execute
+                }
+                
                 val prefix = localIp.substringBeforeLast(".")
-                for (i in 1..20) { // Scan the first 20 IPs as requested
+                log("[SCAN] Scanning network: $prefix.x")
+                
+                for (i in 1..20) {
                     val ip = "$prefix.$i"
                     if (ip != localIp && !discoveredIPs.contains(ip)) {
                         Executors.newSingleThreadExecutor().execute { verifyAndAddPeer(ip) }
@@ -216,13 +286,23 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
 
     private fun getLocalIpAddress(): String? {
         try {
+            val addresses = mutableListOf<String>()
             NetworkInterface.getNetworkInterfaces().toList().forEach { networkInterface ->
                 networkInterface.inetAddresses.toList().forEach { address ->
                     if (!address.isLoopbackAddress && address.hostAddress?.contains(":") == false) {
-                        return address.hostAddress
+                        addresses.add(address.hostAddress!!)
                     }
                 }
             }
+            
+            // Prioritize Tailscale network (100.64.0.x)
+            addresses.firstOrNull { it.startsWith("100.64.0.") }?.let { return it }
+            
+            // Then try any private network except emulator
+            addresses.firstOrNull { !it.startsWith("10.0.2.") }?.let { return it }
+            
+            // Last resort: any address
+            return addresses.firstOrNull()
         } catch (e: Exception) { /* Ignore */ }
         return null
     }
@@ -242,7 +322,7 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
                             if (!isSelfIdentified) {
                                 isSelfIdentified = true
                                 runOnUiThread { 
-                                    log("✅ Self-identified at: $ipOrHostname")
+                                    log("[INFO] Self-identified at: $ipOrHostname")
                                     if (myHostname == null) myHostname = ipOrHostname
                                 }
                             }
@@ -253,8 +333,11 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
                 }
             }
         } catch (e: Exception) {
-            if (e !is java.net.SocketTimeoutException && e !is java.net.ConnectException) {
-                log("🔍 Scan failed for $ipOrHostname: ${e.javaClass.simpleName}")
+            // Silently ignore expected network errors for non-existent hosts
+            if (e is java.net.UnknownHostException || e is java.net.ConnectException || e is java.net.SocketTimeoutException) {
+                // This is normal and expected, do not log it.
+            } else {
+                log("[ERROR] Scan failed for $ipOrHostname: ${e.javaClass.simpleName}")
             }
         }
     }
@@ -270,11 +353,11 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
         runOnUiThread { 
             if (!activePeers.contains(hostname)) {
                 activePeers.add(hostname)
-                log("🎥 Found and verified peer: $hostname (${peerId.take(8)}...)")
+                log("[PEER] Found and verified: $hostname (${peerId.take(8)}...)")
                 log("   Total peers: ${activePeers.size}")
 
                 if (!isStreaming) {
-                    log("🔗 Not streaming yet, connecting to first available peer...")
+                    log("[STREAM] Not streaming yet, connecting to first peer")
                     updateStreamSelection()
                 }
             }
@@ -283,7 +366,7 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
 
     private fun handleStreamFailure() {
         runOnUiThread { 
-            log("❌ Stream failed for peer: $currentPeer")
+            log("[ERROR] Stream failed for peer: $currentPeer")
             mainHandler.removeCallbacks(shuffleRunnable)
 
             val badPeer = currentPeer
@@ -296,19 +379,19 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
             currentPeer = null
             mjpegView.stopStream()
 
-            log("🔄 Attempting to switch to a new peer...")
+            log("[SHUFFLE] Attempting to switch to new peer")
             updateStreamSelection()
         }
     }
 
     private fun shuffleToNextPeer() {
-        log("🔄 Shuffling to next peer...")
+        log("[SHUFFLE] Shuffling to next peer")
         isStreaming = false
         currentPeer = null 
         mjpegView.stopStream()
         
         if (activePeers.isEmpty()) {
-            log("⚠️ No peers available to shuffle to.")
+            log("[WARN] No peers available to shuffle to")
             return
         }
         
@@ -324,13 +407,13 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
             if (target != null && target != currentPeer) {
                 playVideo(target)
             } else if (target != null) {
-                log("⏭️ Shuffle engine selected same peer. Waiting for next shuffle.")
+                log("[INFO] Same peer selected, waiting for next shuffle")
                 mainHandler.postDelayed(shuffleRunnable, SHUFFLE_DURATION)
             } else {
-                 log("⚠️ Shuffle engine returned no peer, waiting for discovery.")
+                 log("[WARN] No peer returned, waiting for discovery")
             }
         } else {
-            log("⏸️ No peers available, waiting for discovery...")
+            log("[WAIT] No peers available, waiting for discovery")
             if (isStreaming) {
                 mjpegView.stopStream()
                 isStreaming = false
@@ -340,7 +423,7 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
     }
 
     private fun playVideo(hostname: String) {
-        log("▶️ Connecting to: $hostname")
+        log("[STREAM] Connecting to: $hostname")
         isStreaming = true
         currentPeer = hostname
         mjpegView.startStream("http://$hostname:8080/video")
@@ -351,12 +434,15 @@ class MainActivity : AppCompatActivity(), CameraServer.ServerListener {
 
     private fun log(msg: String) {
         val time = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
-        Log.d(TAG, "[$time] $msg")
+        runOnUiThread {
+            if (this::logTextView.isInitialized) {
+                logTextView.append("[$time] $msg\n")
+            }
+        }
     }
 
     override fun onPause() {
         super.onPause()
-        cameraServer?.stopCamera()
         mainHandler.removeCallbacksAndMessages(null)
     }
 
