@@ -2,6 +2,8 @@
 
 VideoShuffle is a robust Android application designed for creating a seamless, self-organizing video shuffling network. It is built to run on a group of Android devices (such as tablets and TV boxes) on the same private mesh network (e.g., Tailscale, Headscale), and it is optimized for use with MagicDNS.
 
+## Download the APK from the Releases page!
+
 ## Core Features
 
 - **Automatic Peer Discovery:** The app uses a multi-pronged approach (MagicDNS, UDP broadcasts, and local network scanning) to reliably discover other devices running the same app.
@@ -19,7 +21,7 @@ The app's discovery system is designed to work over a mesh VPN and relies on a s
 
 2.  **Enable MagicDNS:** You must enable MagicDNS in your network's admin console. This is what allows devices to find each other using their simple hostnames instead of IP addresses.
 
-3.  **Device Naming Convention:** In your network's admin console (e.g., `https://headscale.planbee.ai/admin`), you must name your devices according to the following pattern:
+3.  **Device Naming Convention:** In your network's admin console (e.g., '//servername//'), you must name your devices according to the following pattern:
     `uninovis-tp-XX`
     Where `XX` is a two-digit number (e.g., `01`, `02`, `03`). The app is hard-coded to scan for devices named from `uninovis-tp-01` through `uninovis-tp-20`.
 
@@ -37,7 +39,7 @@ Failure to follow this naming convention will prevent the MagicDNS discovery fro
 1.  **Clone the Repository:**
 
     ```bash
-    git clone <your-repository-url>
+    git clone https://github.com/archay0/VS-usbcam.git
     ```
 
 2.  **Open in Android Studio:**
@@ -53,9 +55,7 @@ Failure to follow this naming convention will prevent the MagicDNS discovery fro
 
 ## Distributing the App
 
-The generated APK file (`app-debug.apk`) should not be committed to the Git repository. Instead, it should be distributed using **GitHub Releases**. This allows you to attach the compiled application to a specific version tag of your source code.
-
-Refer to the official GitHub documentation on "[Managing releases in a repository](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)" for detailed instructions.
+Distribution with trusted url exchange and Headscale logins. Please ask admin.
 
 ## Enabling Debug Logging
 
