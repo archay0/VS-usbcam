@@ -3,7 +3,11 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
@@ -29,14 +33,18 @@
         <activity
             android:name=".MainActivity"
             android:launchMode="singleTask"
-            android:exported="true">
+            android:exported="true"
+            android:enabled="true">
+            <!-- App Launcher intent -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-                <!-- Adding LEANBACK_LAUNCHER ensures it ALSO shows up if the user installs a TV launcher -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-                
-                <!-- Make this a Home app -->
+            </intent-filter>
+            
+            <!-- Home button intent - separate filter triggers the chooser dialog -->
+            <intent-filter android:priority="1">
+                <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
@@ -48,6 +56,11 @@
             <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
                 android:resource="@xml/device_filter" />
         </activity>
+
+        <service
+            android:name=".VideoKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="camera|microphone|dataSync" />
 
     </application>
 

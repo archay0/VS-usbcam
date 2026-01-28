@@ -1,80 +1,81 @@
-# VideoShuffle: A Self-Organizing Video Shuffling App
+# VideoShuffle
 
-VideoShuffle is a robust Android application designed for creating a seamless, self-organizing video shuffling network. It is built to run on a group of Android devices (such as tablets and TV boxes) on the same private mesh network (e.g., Tailscale, Headscale), and it is optimized for use with MagicDNS.
+A lightweight, low-latency video call partner shuffling application for low-power Android devices.
 
-## Download the APK from the Releases page!
+## Features
 
-## Core Features
+- **UDP-based video streaming** - Direct JPEG frame transmission for minimal latency
+- **Automatic peer discovery** - MagicDNS-based discovery
+- **Smart peer pairing** - Lexicographic tie-breaking for automatic session initiation
+- **5-minute auto-shuffle** - Automatic partner rotation with session timers
+- **Optimized for low-end devices** - Minimal CPU overhead, aggressive memory management
+- **Smooth playback** - Incomplete frame tolerance with adaptive timeout (no stuttering)
+- **Bidirectional video** - Simultaneous send/receive with interleaved bursts
 
-- **Automatic Peer Discovery:** The app uses a multi-pronged approach (MagicDNS, UDP broadcasts, and local network scanning) to reliably discover other devices running the same app.
-- **Dynamic Network Awareness:** New devices that join the network are automatically discovered and added to the shuffling pool without requiring an app restart.
-- **Intelligent Shuffling:** The app will automatically connect to the first available peer. After a 5-minute interval, it will randomly shuffle to a different device in the network.
-- **Robust Error Handling:** The app gracefully handles stream failures, removing unresponsive peers from the active list and immediately attempting to switch to a different device.
-- **Hardware-Aware Camera Support:** The app automatically detects if a device has a USB camera connected and will use it as a video source. On devices without a camera or on TV-based devices (which may have poor USB support), it will safely fall back to a "No Signal" placeholder.
-- **Kiosk Mode:** The app is designed to run as a dedicated home screen launcher, making it ideal for single-purpose device deployments.
-
-## Network Configuration (Tailscale/Headscale)
-
-The app's discovery system is designed to work over a mesh VPN and relies on a specific device naming convention.
-
-1.  **Mesh Network:** All devices running this app must be part of the same Tailscale or Headscale network. This ensures they can communicate with each other regardless of their physical location.
-
-2.  **Enable MagicDNS:** You must enable MagicDNS in your network's admin console. This is what allows devices to find each other using their simple hostnames instead of IP addresses.
-
-3.  **Device Naming Convention:** In your network's admin console (e.g., '//servername//'), you must name your devices according to the following pattern:
-    `uninovis-tp-XX`
-    Where `XX` is a two-digit number (e.g., `01`, `02`, `03`). The app is hard-coded to scan for devices named from `uninovis-tp-01` through `uninovis-tp-20`.
-
-Failure to follow this naming convention will prevent the MagicDNS discovery from working.
-
-## Building from Source
+## Building
 
 ### Prerequisites
 
-- Android Studio (latest version recommended)
-- A Java Development Kit (JDK) version 11 or higher
+- Android Studio (latest)
+- JDK 11+
+- Android SDK 24+ (API level)
 
 ### Build Instructions
 
-1.  **Clone the Repository:**
+```bash
+./gradlew assembleDebug
+```
 
-    ```bash
-    git clone https://github.com/archay0/VS-usbcam.git
-    ```
+APK will be at: `app/build/outputs/apk/debug/app-debug.apk`
 
-2.  **Open in Android Studio:**
+### Installation
 
-    -   Launch Android Studio.
-    -   Select "Open" and navigate to the cloned project directory.
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
 
-3.  **Build the APK:**
+## Permissions
 
-    -   Wait for Android Studio to sync the Gradle project.
-    -   From the menu bar, go to `Build` -> `Build Bundle(s) / APK(s)` -> `Build APK(s)`.
-    -   Once the build is complete, a notification will appear. Click "locate" to find the generated `app-debug.apk` file.
+Required:
+- `CAMERA` - Video capture
+- `INTERNET` - Network communication
+- `ACCESS_NETWORK_STATE` - Network status
 
-## Distributing the App
+Optional (required=false):
+- `RECORD_AUDIO` - Audio capture
+- USB host/autofocus - Device compatibility
 
-Distribution with trusted url exchange and Headscale logins. Please ask admin.
+## Device Requirements
 
-## Enabling Debug Logging
+- Android 7.0+ (API 24+)
+- 2MB minimum free RAM
+- Network: 2Mbps up/down recommended
+- Camera (front or back)
 
-For a clean UI, on-screen logging is disabled by default. To re-enable it for debugging:
+## Performance Tuning
 
-1.  Open `MainActivity.kt`.
-2.  Navigate to the `log(msg: String)` function.
-3.  Uncomment the line that appends text to the `logTextView`. The `Log.d` line ensures that logs are always sent to Android Studio's Logcat.
+### Key Settings
 
-    ```kotlin
-    private fun log(msg: String) {
-        // ...
-        runOnUiThread {
-            // Uncomment the following lines to enable on-screen logging
-            // if (::logTextView.isInitialized) {
-            //     logTextView.append("[$time] $msg\n")
-            // }
-            Log.d(TAG, "[$time] $msg")
-        }
-    }
-    ```
-4.  Rebuild the APK.
+In `UdpFrameExchange.kt`:
+```kotlin
+BURST_SIZE_TX = 30            // Packets per send burst
+BURST_SIZE_RX = 30            // Packets per receive burst
+FRAME_TIMEOUT_MS = 250L       // Timeout for frame arrival
+FRAME_TOLERANCE = 0.95        // Accept frames at 95% complete
+```
+
+In `WebRTCManager.kt`:
+```kotlin
+yuvImage.compressToJpeg(Rect(0, 0, width, height), 50, out)  // JPEG quality %
+```
+
+## Known Limitations
+
+- **Resolution**: 640x480 optimal for 2Mbps (much higher = network saturation)
+- **FPS**: 20fps optimal (higher = network saturation)
+- **Quality**: 50% JPEG optimal (higher = larger frames)
+- **Hardware codec**: Not supported on Orbsmart TV boxes
+
+## License
+
+Proprietary - Archay Wakodikar

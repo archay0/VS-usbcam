@@ -4,6 +4,9 @@ plugins {
     id("kotlin-kapt")
 }
 
+import java.io.FileInputStream
+import java.util.Properties
+
 android {
     namespace = "com.arc.videoshuffle"
     compileSdk = 35
@@ -23,9 +26,28 @@ android {
         buildConfig = true
     }
 
+    val keystoreProperties = Properties()
+    val keystorePropertiesFile = rootProject.file("keystore.properties")
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -58,7 +80,10 @@ dependencies {
     
     // NanoHTTPD
     implementation(libs.nanohttpd)
-    
+
+    // WebRTC for video calls
+    implementation("org.webrtc:google-webrtc:1.0.32006")
+
     // AppAuth for Keycloak
     implementation(libs.appauth)
 
