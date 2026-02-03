@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew assembleDebug:*)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\ARCHAY WAKODIKAR\\\\AndroidStudioProjects\\\\VideoShuffle\\\\deploy.ps1\")",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File \".\\\\deploy.ps1\")",
+      "Bash(adb devices:*)"
+    ]
+  }
+}

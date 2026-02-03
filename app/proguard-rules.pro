@@ -19,3 +19,30 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# WebRTC ProGuard Rules - Keep all WebRTC classes
+-keep class org.webrtc.** { *; }
+-keepclassmembers class org.webrtc.** { *; }
+-dontwarn org.webrtc.**
+
+# Keep native methods
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# Keep AppAuth classes
+-keep class net.openid.appauth.** { *; }
+-dontwarn net.openid.appauth.**
+
+# Keep Gson classes
+-keep class com.google.gson.** { *; }
+-dontwarn com.google.gson.**
+
+# Keep OkHttp classes
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
+
+# Keep app-specific classes
+-keep class com.arc.videoshuffle.** { *; }

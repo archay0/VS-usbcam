@@ -23,10 +23,16 @@ A lightweight, low-latency video call partner shuffling application for low-powe
 ### Build Instructions
 
 ```bash
+# Debug build (for development)
 ./gradlew assembleDebug
+
+# Release build (for production)
+./gradlew assembleRelease
 ```
 
-APK will be at: `app/build/outputs/apk/debug/app-debug.apk`
+APK locations:
+- Debug: `app/build/outputs/apk/debug/app-debug.apk`
+- Release: `app/build/outputs/apk/release/app-release.apk`
 
 ### Installation
 
