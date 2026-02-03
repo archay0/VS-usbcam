@@ -15,3 +15,5 @@ local.properties
 keystore.properties
 keystore/
 app/tailscale-api.json
+.claude/
+.idea/
